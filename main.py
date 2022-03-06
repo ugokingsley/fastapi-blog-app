@@ -3,11 +3,13 @@ import aioredis
 from fastapi_admin.app import app as admin_app
 from fastapi_admin.providers.login import UsernamePasswordProvider
 
-from typing import Optional
+from typing import Optional, List
 from blog import schemas, models
 from blog.database import engine, SessionLocal
 from sqlalchemy.orm import Session
 import uvicorn
+
+from passlib.context import CryptContext
 
 
 models.Base.metadata.create_all(bind=engine)
@@ -53,12 +55,19 @@ def update(id, request:schemas.Blog, db:Session = Depends(get_db)):
 	db.commit()
 	return 'updated'
 
-@app.get('/blog')
+#define another pydandic model/or schema
+#and assign as a response model to display 
+#only the fields you want in the payload
+#make it a list since it's a queryset/collection
+@app.get('/blog', response_model=List[schemas.ShowBlog])
 def all(db:Session = Depends(get_db)):
 	blogs = db.query(models.Blog).all()
 	return blogs
 
-@app.get('/blog/{id}', status_code=200)
+#define another pydandic model/or schema
+#and assign as a response model to display 
+#only the fields you want in the payload
+@app.get('/blog/{id}', status_code=200, response_model=schemas.ShowBlog)
 def show(id, response:Response, db:Session = Depends(get_db)):
 	blog = db.query(models.Blog).filter(models.Blog.id==id).first()
 	if not blog:
@@ -67,6 +76,19 @@ def show(id, response:Response, db:Session = Depends(get_db)):
 		#return {'detail':f"Blog with id: {id} not available"} 
 	return blog
 
+pwd_cxt = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+@app.post('/user', status_code=status.HTTP_201_CREATED)
+def create_user(request: schemas.User, db: Session = Depends(get_db)):
+	new_user = models.User(
+		name=request.name, 
+		email=request.email,
+		password=request.password,
+		)
+	db.add(new_user)
+	db.commit()
+	db.refresh(new_user) 
+	return new_user
 
 
 '''
